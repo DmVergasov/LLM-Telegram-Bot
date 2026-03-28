@@ -236,10 +236,19 @@ export function createBot(token: string) {
 
       const chunks = splitMessage(reply, 4096)
       for (const chunk of chunks) {
-        const sent = await ctx.reply(chunk, {
-          reply_to_message_id: isGroup ? messageId : undefined,
-          parse_mode: undefined,
-        })
+        let sent
+        try {
+          const formatted = toTelegramMd2(chunk)
+          sent = await ctx.reply(formatted, {
+            reply_to_message_id: isGroup ? messageId : undefined,
+            parse_mode: 'MarkdownV2',
+          })
+        } catch {
+          // Fallback to plain text if MarkdownV2 parsing fails
+          sent = await ctx.reply(chunk, {
+            reply_to_message_id: isGroup ? messageId : undefined,
+          })
+        }
         addMessage(chatId, 'assistant', chunk, sent.message_id, messageId)
       }
     } catch (err: any) {
@@ -250,6 +259,54 @@ export function createBot(token: string) {
   })
 
   return bot
+}
+
+function escapeMarkdownV2(text: string): string {
+  return text.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1')
+}
+
+function toTelegramMd2(text: string): string {
+  // Split into code blocks / inline code / plain text
+  const segments: Array<{ type: 'code' | 'text'; raw: string }> = []
+  const codePattern = /(```[\s\S]*?```|`[^`\n]+`)/g
+  let lastIdx = 0
+  let m: RegExpExecArray | null
+
+  while ((m = codePattern.exec(text)) !== null) {
+    if (m.index > lastIdx) {
+      segments.push({ type: 'text', raw: text.slice(lastIdx, m.index) })
+    }
+    segments.push({ type: 'code', raw: m[0] })
+    lastIdx = m.index + m[0].length
+  }
+  if (lastIdx < text.length) {
+    segments.push({ type: 'text', raw: text.slice(lastIdx) })
+  }
+
+  return segments
+    .map((seg) => {
+      if (seg.type === 'code') return seg.raw
+
+      let t = seg.raw
+
+      // Convert markdown headers → bold markers
+      t = t.replace(/^#{1,6}\s+(.+)$/gm, '**$1**')
+
+      // Convert **bold** → *bold* (Telegram MarkdownV2 bold)
+      const parts: string[] = []
+      const boldRe = /\*\*(.+?)\*\*/gs
+      let bLast = 0
+      let bm: RegExpExecArray | null
+      while ((bm = boldRe.exec(t)) !== null) {
+        if (bm.index > bLast) parts.push(escapeMarkdownV2(t.slice(bLast, bm.index)))
+        parts.push('*' + escapeMarkdownV2(bm[1]) + '*')
+        bLast = bm.index + bm[0].length
+      }
+      if (bLast < t.length) parts.push(escapeMarkdownV2(t.slice(bLast)))
+
+      return parts.join('')
+    })
+    .join('')
 }
 
 function splitMessage(text: string, limit: number): string[] {
