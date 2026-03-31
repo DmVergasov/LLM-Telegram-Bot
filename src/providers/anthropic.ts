@@ -50,6 +50,13 @@ export function createAnthropicProvider(): LLMProvider {
         max_tokens: 4096,
         system: systemMsg?.content,
         messages: merged,
+        tools: [
+          {
+            type: 'web_search_20250305',
+            name: 'web_search',
+            max_uses: 5,
+          } as any,
+        ],
       })
 
       return response.content

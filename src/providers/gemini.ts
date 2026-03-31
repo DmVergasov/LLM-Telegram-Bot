@@ -6,7 +6,10 @@ export function createGeminiProvider(): LLMProvider {
 
   return {
     async chat(messages: LLMMessage[], model: string): Promise<string> {
-      const genModel = genAI.getGenerativeModel({ model })
+      const genModel = genAI.getGenerativeModel({
+        model,
+        tools: [{ googleSearch: {} } as any],
+      })
 
       const systemMsg = messages.find((m) => m.role === 'system')
       const chatMessages = messages.filter((m) => m.role !== 'system')

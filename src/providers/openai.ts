@@ -24,7 +24,10 @@ export function createOpenAIProvider(): LLMProvider {
       const response = await client.chat.completions.create({
         model,
         messages: formatted as any,
-      })
+        web_search_options: {
+          search_context_size: 'medium',
+        },
+      } as any)
       return response.choices[0]?.message?.content ?? ''
     },
   }

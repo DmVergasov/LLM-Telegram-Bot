@@ -27,7 +27,11 @@ export function createGrokProvider(): LLMProvider {
       const response = await client.chat.completions.create({
         model,
         messages: formatted as any,
-      })
+        search_parameters: {
+          mode: 'auto',
+          sources: ['web', 'x'],
+        },
+      } as any)
       return response.choices[0]?.message?.content ?? ''
     },
   }
